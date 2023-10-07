@@ -58,8 +58,8 @@ for line in lines[frontier_start_line:forces_start_line]:
 
 frontiers = [int(value) for value in frontier_values]
 
-displacments = [sp.symbols('u{}'.format(i)) for i, value in enumerate(frontiers) if value == 1]
-displacments_vector = np.array([displacments.pop(0) if value == 1 else 0 for value in frontiers])
+displacements = [sp.symbols('u{}'.format(i)) for i, value in enumerate(frontiers) if value == 1]
+displacements_vector = np.array([displacements.pop(0) if value == 1 else 0 for value in frontiers])
 
 
 reactions = [1 if value == 0 else 0 for value in frontiers]
@@ -67,7 +67,7 @@ reactions = [1 if value == 0 else 0 for value in frontiers]
 reactions2 = [sp.symbols('R{}'.format(i)) for i, value in enumerate(reactions) if value == 1]
 reactions_vector = [reactions2.pop(0) if value == 1 else 0 for value in reactions]
 
-print(displacments_vector)
+print(displacements_vector)
 print('\n')
 
 
@@ -107,7 +107,7 @@ def calculate_angle(coordinates, joint1, joint2):
     return angle
 
 
-def calculate_stiffness_matrix(joint1, joint2):
+def calculate_stiffness_matrix(coordinates, joint1, joint2):
 
     theta = calculate_angle(coordinates, joint1, joint2)
 
@@ -124,16 +124,13 @@ def calculate_stiffness_matrix(joint1, joint2):
     h = calculate_distance(coordinates, joint1, joint2)
     k_upper_triangle *= E_Pas * A_m2 / h
 
-    
-    print(h)
-    print(theta * (180 / math.pi))
     k_local = k_upper_triangle + np.triu(k_upper_triangle, k=1).T
 
     return k_local
 
 
 
-def calculate_big_stiffness_matrix(matrix):
+def calculate_big_stiffness_matrix(coordinates, matrix):
 
     big_K = [[0 for _ in range(len(matrix)*2)] for _ in range(len(matrix)*2)]
 
@@ -144,9 +141,7 @@ def calculate_big_stiffness_matrix(matrix):
 
                 joint1 = str(i + 1)
                 joint2 = str(j + 1)
-                small_k = calculate_stiffness_matrix(joint1, joint2)
-                print(small_k)
-                print('\n')
+                small_k = calculate_stiffness_matrix(coordinates, joint1, joint2)
 
                 big_K[(i+1)*2-2][(i+1)*2-2] += small_k[0][0]
                 big_K[(i+1)*2-2][(i+1)*2-1] += small_k[0][1]
@@ -167,7 +162,7 @@ def calculate_big_stiffness_matrix(matrix):
     
     return big_K
 
-big_K = np.array(calculate_big_stiffness_matrix(matrix))
+big_K = np.array(calculate_big_stiffness_matrix(coordinates, matrix))
 
 for row in big_K:
     print(row)
@@ -181,11 +176,8 @@ def transform_to_equations(A, X, B):
     return equations
 
 
-equations = transform_to_equations(big_K, displacments_vector, forces_vector)
+equations = transform_to_equations(big_K, displacements_vector, forces_vector)
 
-for row in equations:
-    print(row)
-print('\n')
 
 def solve_equations(A, X, B):
     equations = transform_to_equations(A, X, B)
@@ -200,9 +192,59 @@ def solve_equations(A, X, B):
     
     return solved_X, solved_B
 
-displacment_solutions, forces_solution = solve_equations(big_K, displacments_vector, forces_vector)
+displacement_solutions, forces_solution = solve_equations(big_K, displacements_vector, forces_vector)
 
-print(displacment_solutions)
+print(displacement_solutions)
 print('\n')
 print(forces_solution)
+print('\n')
+
+def make_coordinates(vector, old_coordinates):
+    dictionary = {}
+    for i in range(0, len(vector), 2):
+        x = vector[i]
+        y = vector[i + 1]
+        dictionary[str(i // 2 + 1)] = (float(x), float(y))
+
+    res = {}
+    for key in dictionary:
+        if key in old_coordinates:
+            x1, y1 = dictionary[key]
+            x2, y2 = old_coordinates[key]
+            res[key] = (x1 + x2, y1 + y2)
+
+    return res
+
+new_coordinates = make_coordinates(displacement_solutions, coordinates)
+
+print(new_coordinates)
+print('\n')
+
+
+def calculate_tensions(old_coordinates, new_coordinates, displacements, elements_matrix):
+    tensions = []
+
+    for i in range(len(matrix)):
+        for j in range(i + 1, len(matrix)):
+
+            if elements_matrix[i][j] == 1:
+                
+                joint1 = str(i + 1)
+                joint2 = str(j + 1)
+
+                L = calculate_distance(old_coordinates, joint1, joint2)
+
+                theta = calculate_angle(new_coordinates, joint1, joint2)
+
+                displacements[0]
+
+                tension = ((displacements[j*2] - displacements[i*2]) * math.cos(theta) + (displacements[j*2+1] - displacements[i*2+1]) * math.sin(theta)) / L
+
+                tensions += [tension]
+                
+    return tensions
+
+tensions_vector = calculate_tensions(coordinates, new_coordinates, displacement_solutions, matrix)
+
+print(tensions_vector)
 print('\n')
